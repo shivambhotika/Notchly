@@ -214,6 +214,7 @@ final class AgentRemoteBridge {
         noteRelayActivityFromCurrentEvent()
 
         let badges = relayAgentBadges()
+        pruneStaleRelayActivity(activeBadges: badges)
         let latestEvent = relayLatestEvent(activeBadges: badges)
 
         var pending: AgentRelayPendingApproval?
@@ -294,6 +295,14 @@ final class AgentRemoteBridge {
         lastRelayActivityBySource[event.source.lowercased()] = Date()
     }
 
+    private func pruneStaleRelayActivity(activeBadges: [AgentRelayAgentBadge]) {
+        let active = Set(activeBadges.map { $0.source.lowercased() })
+        let cutoff = Date().addingTimeInterval(-Self.relayActivityMaxAge)
+        lastRelayActivityBySource = lastRelayActivityBySource.filter { source, seenAt in
+            active.contains(source) || seenAt > cutoff
+        }
+    }
+
     private static let relayActivityMaxAge: TimeInterval = 3 * 60
 
     private static func isRelayVisibleEvent(_ event: AgentEvent) -> Bool {
@@ -344,6 +353,9 @@ final class AgentRemoteBridge {
         hasher.combine(state.macVolume)
         hasher.combine(state.macMuted)
         hasher.combine(state.activeAgents.count)
+        for badge in state.activeAgents.sorted(by: { $0.source < $1.source }) {
+            hasher.combine(badge.source)
+        }
         return hasher.finalize()
     }
 
