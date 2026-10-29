@@ -18,6 +18,7 @@ struct DynamicIslandApp: App {
                 codexHookIntegrationManager: appDelegate.environment.codexHookIntegrationManager,
                 claudeHookIntegrationManager: appDelegate.environment.claudeHookIntegrationManager,
                 cursorHookIntegrationManager: appDelegate.environment.cursorHookIntegrationManager,
+                terminalAgentHookIntegrationManager: appDelegate.environment.terminalAgentHookIntegrationManager,
                 lockScreenIdentityManager: appDelegate.environment.lockScreenIdentityManager
             )
             .frame(minWidth: 860, minHeight: 680)

@@ -14,6 +14,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     private let codexHookIntegrationManager: CodexHookIntegrationManager
     private let claudeHookIntegrationManager: ClaudeHookIntegrationManager
     private let cursorHookIntegrationManager: CursorHookIntegrationManager
+    private let terminalAgentHookIntegrationManager: TerminalAgentHookIntegrationManager
     private let lockScreenIdentityManager: LockScreenIdentityManager
 
     init(
@@ -21,12 +22,14 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         codexHookIntegrationManager: CodexHookIntegrationManager,
         claudeHookIntegrationManager: ClaudeHookIntegrationManager,
         cursorHookIntegrationManager: CursorHookIntegrationManager,
+        terminalAgentHookIntegrationManager: TerminalAgentHookIntegrationManager,
         lockScreenIdentityManager: LockScreenIdentityManager
     ) {
         self.settingsManager = settingsManager
         self.codexHookIntegrationManager = codexHookIntegrationManager
         self.claudeHookIntegrationManager = claudeHookIntegrationManager
         self.cursorHookIntegrationManager = cursorHookIntegrationManager
+        self.terminalAgentHookIntegrationManager = terminalAgentHookIntegrationManager
         self.lockScreenIdentityManager = lockScreenIdentityManager
         super.init()
     }
@@ -47,6 +50,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             codexHookIntegrationManager: codexHookIntegrationManager,
             claudeHookIntegrationManager: claudeHookIntegrationManager,
             cursorHookIntegrationManager: cursorHookIntegrationManager,
+            terminalAgentHookIntegrationManager: terminalAgentHookIntegrationManager,
             lockScreenIdentityManager: lockScreenIdentityManager
         )
             .ignoresSafeArea(.container, edges: .top)

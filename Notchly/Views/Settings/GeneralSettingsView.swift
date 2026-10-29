@@ -203,6 +203,7 @@ struct CodexSettingsView: View {
     @ObservedObject var codexHookIntegrationManager: CodexHookIntegrationManager
     @ObservedObject var claudeHookIntegrationManager: ClaudeHookIntegrationManager
     @ObservedObject var cursorHookIntegrationManager: CursorHookIntegrationManager
+    @ObservedObject var terminalAgentHookIntegrationManager: TerminalAgentHookIntegrationManager
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -229,6 +230,32 @@ struct CodexSettingsView: View {
                         manager: cursorHookIntegrationManager,
                         description: "Shows Cursor shell approval and completion alerts using local Cursor hooks."
                     )
+
+                    SettingsDivider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Terminal agents (Grok, T3, AutoRouter)")
+                            .font(.system(size: 13, weight: .medium))
+                        Text("Install jsonl hooks, then call e.g. notchly-grok-hook progress \"Working\" from your CLI.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        ForEach(terminalAgentHookIntegrationManager.agents) { agent in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(agent.title).font(.system(size: 12, weight: .medium))
+                                    Text(agent.subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("Install") {
+                                    terminalAgentHookIntegrationManager.install(agentID: agent.id)
+                                }
+                                .controlSize(.small)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .onAppear { terminalAgentHookIntegrationManager.refreshStatus() }
 
                     SettingsDivider()
 

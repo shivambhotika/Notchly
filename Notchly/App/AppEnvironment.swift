@@ -76,6 +76,7 @@ final class AppEnvironment {
         codexHookIntegrationManager: codexHookIntegrationManager,
         claudeHookIntegrationManager: claudeHookIntegrationManager,
         cursorHookIntegrationManager: cursorHookIntegrationManager,
+        terminalAgentHookIntegrationManager: terminalAgentHookIntegrationManager,
         lockScreenIdentityManager: lockScreenIdentityManager
     )
 }

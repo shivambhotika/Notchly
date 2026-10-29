@@ -12,6 +12,7 @@ struct SettingsView: View {
     @ObservedObject var codexHookIntegrationManager: CodexHookIntegrationManager
     @ObservedObject var claudeHookIntegrationManager: ClaudeHookIntegrationManager
     @ObservedObject var cursorHookIntegrationManager: CursorHookIntegrationManager
+    @ObservedObject var terminalAgentHookIntegrationManager: TerminalAgentHookIntegrationManager
     @ObservedObject var lockScreenIdentityManager: LockScreenIdentityManager
     @State private var selectedSection: SettingsSection = .about
     @State private var searchText = ""
@@ -252,7 +253,8 @@ struct SettingsView: View {
                 settingsManager: settingsManager,
                 codexHookIntegrationManager: codexHookIntegrationManager,
                 claudeHookIntegrationManager: claudeHookIntegrationManager,
-                cursorHookIntegrationManager: cursorHookIntegrationManager
+                cursorHookIntegrationManager: cursorHookIntegrationManager,
+                terminalAgentHookIntegrationManager: terminalAgentHookIntegrationManager
             )
             
         case .about:
