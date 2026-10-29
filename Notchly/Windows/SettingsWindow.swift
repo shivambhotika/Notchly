@@ -75,7 +75,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         window.standardWindowButton(.miniaturizeButton)?.isEnabled = false
         window.standardWindowButton(.zoomButton)?.isEnabled = false
 
-        window.contentView = NSHostingView(rootView: rootView)
+        let hostingView = NSHostingView(rootView: rootView)
+        hostingView.frame = window.contentLayoutRect
+        hostingView.autoresizingMask = [.width, .height]
+        window.contentView = hostingView
 
         self.window = window
 

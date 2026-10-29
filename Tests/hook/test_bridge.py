@@ -4,7 +4,11 @@ AgentBridgeServer/AgentSessionStore that mirrors the Swift logic byte for byte
 import json, os, select, socket, subprocess, sys, tempfile, threading, time
 
 HOOK = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "notchly-claude-hook")
-HOME = tempfile.mkdtemp()
+HOME = "/tmp/notchly_hook_test"
+if os.path.isdir(HOME):
+    import shutil
+    shutil.rmtree(HOME, ignore_errors=True)
+os.makedirs(HOME, exist_ok=True)
 SUPPORT = os.path.join(HOME, "Library/Application Support/Notchly")
 SOCK = os.path.join(SUPPORT, "agent.sock")
 RS = 0x1E

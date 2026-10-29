@@ -279,6 +279,63 @@ struct CodexSettingsView: View {
                     .padding(.vertical, 12)
                 }
             }
+
+            SettingsCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("iPhone relay")
+                        .font(.system(size: 13, weight: .semibold))
+
+                    Text("Mirror agent alerts to your iPhone Dynamic Island and control Mac volume or approve tools from the Agent Island app.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+
+                    SettingsToggleRow(
+                        title: "Enable relay sync",
+                        subtitle: "Forwards notch agent state to your relay server.",
+                        isOn: $settingsManager.agentRelayEnabled
+                    )
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Relay URL")
+                            .font(.system(size: 12, weight: .medium))
+                        TextField("http://127.0.0.1:8787", text: $settingsManager.agentRelayEndpointURL)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Shared secret")
+                            .font(.system(size: 12, weight: .medium))
+                        SecureField("Relay secret", text: $settingsManager.agentRelaySharedSecret)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    HStack(spacing: 10) {
+                        Button("Generate new secret") {
+                            settingsManager.agentRelaySharedSecret = AgentRelayPairing.generateSecret()
+                        }
+                        Button("Copy pairing JSON") {
+                            let payload = AgentRelayPairing.makePayload(
+                                relayURL: settingsManager.agentRelayEndpointURL,
+                                secret: settingsManager.agentRelaySharedSecret
+                            )
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(payload, forType: .string)
+                        }
+                    }
+                    .controlSize(.small)
+
+                    AgentRelayPairingQRView(
+                        payload: AgentRelayPairing.makePayload(
+                            relayURL: settingsManager.agentRelayEndpointURL,
+                            secret: settingsManager.agentRelaySharedSecret
+                        )
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 4)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            }
         }
         .onAppear {
             codexHookIntegrationManager.refreshStatus()

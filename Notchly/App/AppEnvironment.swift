@@ -33,6 +33,12 @@ final class AppEnvironment {
     let networkStatusManager = NetworkStatusManager()
     lazy var agentEventManager = AgentEventManager(settingsManager: settingsManager)
     lazy var agentSessionStore = AgentSessionStore(agentEventManager: agentEventManager)
+    lazy var agentRemoteBridge = AgentRemoteBridge(
+        settingsManager: settingsManager,
+        agentEventManager: agentEventManager,
+        agentSessionStore: agentSessionStore,
+        musicManager: musicManager
+    )
     let codexHookIntegrationManager = CodexHookIntegrationManager()
     let claudeHookIntegrationManager = ClaudeHookIntegrationManager()
     let cursorHookIntegrationManager = CursorHookIntegrationManager()

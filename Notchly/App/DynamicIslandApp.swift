@@ -13,7 +13,14 @@ struct DynamicIslandApp: App {
 
     var body: some Scene {
         Settings {
-            EmptyView()
+            SettingsView(
+                settingsManager: appDelegate.environment.settingsManager,
+                codexHookIntegrationManager: appDelegate.environment.codexHookIntegrationManager,
+                claudeHookIntegrationManager: appDelegate.environment.claudeHookIntegrationManager,
+                cursorHookIntegrationManager: appDelegate.environment.cursorHookIntegrationManager,
+                lockScreenIdentityManager: appDelegate.environment.lockScreenIdentityManager
+            )
+            .frame(minWidth: 860, minHeight: 680)
         }
     }
 }

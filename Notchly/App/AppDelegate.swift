@@ -9,7 +9,7 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let environment = AppEnvironment()
+    let environment = AppEnvironment()
     private var startupTask: Task<Void, Never>?
     private var didValidateSingleInstance = false
 
@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuController.install()
         environment.agentEventManager.start()
         environment.agentSessionStore.start()
+        environment.agentRemoteBridge.start()
         environment.musicManager.start()
         environment.networkStatusManager.start()
         overlayController.show()
@@ -79,6 +80,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startupTask = nil
         environment.musicManager.stop()
         environment.agentSessionStore.stop()
+        environment.agentRemoteBridge.pushOfflineState()
+        environment.agentRemoteBridge.stop()
         environment.agentEventManager.stop()
         environment.focusManager.stop()
         environment.brightnessManager.stop()

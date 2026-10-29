@@ -86,6 +86,9 @@ final class SettingsManager: ObservableObject {
         static let enableCodexApprovalAlertSound = false
         static let enableCodexCompletedAlertSound = false
         static let codexCompletedAlertDuration = 2.2
+        static let agentRelayEnabled = false
+        static let agentRelayEndpointURL = "http://127.0.0.1:8787"
+        static let agentRelaySharedSecret = "dev-secret-change-me"
     }
 
     @Published var showBattery: Bool {
@@ -223,6 +226,18 @@ final class SettingsManager: ObservableObject {
         didSet { UserDefaults.standard.set(codexCompletedAlertDuration, forKey: "codexCompletedAlertDuration") }
     }
 
+    @Published var agentRelayEnabled: Bool {
+        didSet { UserDefaults.standard.set(agentRelayEnabled, forKey: "agentRelayEnabled") }
+    }
+
+    @Published var agentRelayEndpointURL: String {
+        didSet { UserDefaults.standard.set(agentRelayEndpointURL, forKey: "agentRelayEndpointURL") }
+    }
+
+    @Published var agentRelaySharedSecret: String {
+        didSet { UserDefaults.standard.set(agentRelaySharedSecret, forKey: "agentRelaySharedSecret") }
+    }
+
     init() {
         self.showBattery = UserDefaults.standard.object(forKey: "showBattery") as? Bool ?? Defaults.showBattery
         self.showMusic = UserDefaults.standard.object(forKey: "showMusic") as? Bool ?? Defaults.showMusic
@@ -254,6 +269,9 @@ final class SettingsManager: ObservableObject {
         self.enableCodexApprovalAlertSound = UserDefaults.standard.object(forKey: "enableCodexApprovalAlertSound") as? Bool ?? legacyCodexAlertSound ?? Defaults.enableCodexApprovalAlertSound
         self.enableCodexCompletedAlertSound = UserDefaults.standard.object(forKey: "enableCodexCompletedAlertSound") as? Bool ?? legacyCodexAlertSound ?? Defaults.enableCodexCompletedAlertSound
         self.codexCompletedAlertDuration = UserDefaults.standard.object(forKey: "codexCompletedAlertDuration") as? Double ?? Defaults.codexCompletedAlertDuration
+        self.agentRelayEnabled = UserDefaults.standard.object(forKey: "agentRelayEnabled") as? Bool ?? Defaults.agentRelayEnabled
+        self.agentRelayEndpointURL = UserDefaults.standard.string(forKey: "agentRelayEndpointURL") ?? Defaults.agentRelayEndpointURL
+        self.agentRelaySharedSecret = UserDefaults.standard.string(forKey: "agentRelaySharedSecret") ?? Defaults.agentRelaySharedSecret
 
         normalizeStatusDisplayModes()
     }
