@@ -446,18 +446,26 @@ final class AgentEventManager: ObservableObject {
     private static let allowedSources: Set<String> = [
         "codex",
         "claude",
-        "cursor"
+        "cursor",
+        "grok",
+        "autorouter",
+        "t3"
     ]
 
     private static let stickyApprovalSources: Set<String> = [
         "codex",
         "claude",
-        "cursor"
+        "cursor",
+        "grok",
+        "autorouter",
+        "t3"
     ]
 
     private static let soundEnabledSources: Set<String> = [
         "codex",
-        "claude"
+        "claude",
+        "grok",
+        "t3"
     ]
 
     private func ensureEventsFile() throws {

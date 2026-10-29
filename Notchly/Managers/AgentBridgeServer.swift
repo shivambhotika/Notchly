@@ -36,7 +36,12 @@ nonisolated struct AgentHookPayload: Sendable {
     let permissionSuggestionsJSON: Data?
 
     var expectsDecision: Bool {
-        hookEventName == "PermissionRequest"
+        switch hookEventName {
+        case "PermissionRequest", "beforeShellExecution", "beforeMCPExecution":
+            return true
+        default:
+            return false
+        }
     }
 
     var toolInput: [String: Any]? {

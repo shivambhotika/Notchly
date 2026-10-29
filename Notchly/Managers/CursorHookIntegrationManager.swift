@@ -182,11 +182,11 @@ final class CursorHookIntegrationManager: ObservableObject {
     }
 
     private var completedHookCommand: String {
-        "\"\(hookScriptURL.path)\" stop"
+        "\"\(hookScriptURL.path)\""
     }
 
     private var progressHookCommand: String {
-        "\"\(hookScriptURL.path)\" progress"
+        "\"\(hookScriptURL.path)\""
     }
 
     private var approvalHookCommand: String {
@@ -202,51 +202,33 @@ final class CursorHookIntegrationManager: ObservableObject {
 #!/bin/sh
 set -eu
 
-event_type="${1:-completed}"
+socket_path="$HOME/Library/Application Support/Notchly/agent.sock"
 events_dir="$HOME/Library/Application Support/Notchly"
 events_file="$events_dir/agent-events.jsonl"
+payload="$(cat)"
+hook_event="$(printf '%s' "$payload" | /usr/bin/python3 -c 'import sys,json; print(json.load(sys.stdin).get("hook_event_name",""))' 2>/dev/null || true)"
+if [ -z "$hook_event" ]; then hook_event="${1:-progress}"; fi
+
+if [ -S "$socket_path" ] && [ -x /usr/bin/nc ]; then
+  {
+    printf '{"v":2,"source":"cursor","kind":"%s"}\\n' "$hook_event"
+    if [ -n "$payload" ]; then printf '%s' "$payload"; else printf '{}'; fi
+    printf '\\n\\036\\n'
+  } | /usr/bin/nc -U "$socket_path"
+  exit 0
+fi
 
 mkdir -p "$events_dir"
-
-case "$event_type" in
+case "$hook_event" in
+  beforeShellExecution|beforeMCPExecution)
+    type="access_request"; title="Need approval"; message="Cursor is awaiting approval"; ttl=120 ;;
   progress|sessionStart|beforeSubmitPrompt|preToolUse|afterAgentResponse)
-    type="progress"
-    title="Cursor working"
-    message=""
-    ttl=180
-    ;;
-  completed|stop|sessionEnd)
-    type="clear"
-    title=""
-    message=""
-    ttl=3
-    ;;
-  failed)
-    type="failed"
-    title="Task failed"
-    message="Cursor failed"
-    ttl=3
-    ;;
-  approval|access_request|notification|permission_request|before_shell_command|before_shell_execution|beforeMCPExecution)
-    type="access_request"
-    title="Need approval"
-    message="Cursor is awaiting approval"
-    ttl=120
-    ;;
-  approved|clear|after_shell_command|after_shell_execution|afterMCPExecution)
-    type="clear"
-    title=""
-    message=""
-    ttl=3
-    ;;
-  *)
-    type="progress"
-    title="Cursor working"
-    message=""
-    ttl=180
-    ;;
+    type="progress"; title="Cursor working"; message=""; ttl=180 ;;
+  stop|sessionEnd|completed)
+    type="clear"; title=""; message=""; ttl=3 ;;
+  failed) type="failed"; title="Task failed"; message="Cursor failed"; ttl=3 ;;
+  *) type="progress"; title="Cursor working"; message=""; ttl=180 ;;
 esac
-
 printf '{"source":"cursor","type":"%s","title":"%s","message":"%s","ttl":%s}\\n' "$type" "$title" "$message" "$ttl" >> "$events_file"
 """
     }

@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuController.install()
         environment.agentEventManager.start()
         environment.agentSessionStore.start()
+        environment.macRelayPresenceMonitor.start()
         environment.agentRemoteBridge.start()
         environment.musicManager.start()
         environment.networkStatusManager.start()

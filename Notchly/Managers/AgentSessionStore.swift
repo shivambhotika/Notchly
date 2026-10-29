@@ -178,6 +178,12 @@ final class AgentSessionStore: ObservableObject {
             enqueueApproval(message: message, session: session)
             return
 
+        case "beforeShellExecution", "beforeMCPExecution":
+            session.phase = .waitingForApproval
+            sessions[sessionID] = session
+            enqueueCursorExecutionApproval(message: message, session: session)
+            return
+
         case "PreToolUse":
             session.phase = .runningTool(payload.toolName ?? "tool")
 
@@ -279,6 +285,40 @@ final class AgentSessionStore: ObservableObject {
         }
     }
 
+    private func enqueueCursorExecutionApproval(message: AgentBridgeMessage, session: AgentSession) {
+        let payload = message.payload
+        let input = payload.toolInput ?? [:]
+        let command =
+            (input["command"] as? String)
+            ?? (input["tool_name"] as? String)
+            ?? (input["server"] as? String)
+            ?? payload.hookEventName
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        let summary = trimmed.count > 140 ? String(trimmed.prefix(137)) + "…" : trimmed
+        let detailParts = [
+            payload.hookEventName,
+            session.projectName,
+            payload.cwd.isEmpty ? nil : payload.cwd
+        ].compactMap { $0?.isEmpty == false ? $0 : nil }
+        let request = AgentApprovalRequest(
+            id: message.connectionID,
+            sessionID: session.id,
+            source: session.source,
+            projectName: session.projectName,
+            toolName: payload.hookEventName,
+            summary: summary.isEmpty ? "Cursor wants to run a tool" : summary,
+            detail: detailParts.isEmpty ? nil : detailParts.joined(separator: " · "),
+            receivedAt: Date(),
+            fingerprint: payload.toolInputFingerprint,
+            alwaysAllowPermissions: nil
+        )
+        pendingApprovals.append(request)
+        hotkeys.register()
+        if pendingApprovals.count == 1 {
+            presentCurrentApproval()
+        }
+    }
+
     // MARK: - Queue management
 
     private func releaseApprovals(sessionID: String, matching fingerprint: String?) {
@@ -355,6 +395,18 @@ final class AgentSessionStore: ObservableObject {
     // MARK: - Hook response encoding (Claude Code PermissionRequest contract)
 
     static func hookResponse(for decision: AgentApprovalDecision, request: AgentApprovalRequest) -> Data? {
+        if request.source.lowercased() == "cursor",
+           request.toolName == "beforeShellExecution" || request.toolName == "beforeMCPExecution" {
+            switch decision {
+            case .terminal:
+                return nil
+            case .allow, .alwaysAllow:
+                return Data("{\"permission\":\"allow\"}".utf8)
+            case .deny:
+                return Data("{\"permission\":\"deny\",\"user_message\":\"Denied from Agent Island\"}".utf8)
+            }
+        }
+
         var decisionObject: [String: Any]
         switch decision {
         case .terminal:

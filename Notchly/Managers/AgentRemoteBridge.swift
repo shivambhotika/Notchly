@@ -14,41 +14,43 @@ final class AgentRemoteBridge {
     private let agentEventManager: AgentEventManager
     private let agentSessionStore: AgentSessionStore
     private let musicManager: MusicManager
+    private let brightnessManager: BrightnessManager
+    private let presenceService: RelayPresenceService
+    private let presenceMonitor: MacRelayPresenceMonitor
 
     private var pushTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
     private var lastPushedFingerprint = 0
     private var debouncedPushTask: Task<Void, Never>?
-    private var lastRelayActivityBySource: [String: Date] = [:]
 
     init(
         settingsManager: SettingsManager,
         agentEventManager: AgentEventManager,
         agentSessionStore: AgentSessionStore,
-        musicManager: MusicManager
+        musicManager: MusicManager,
+        brightnessManager: BrightnessManager,
+        presenceService: RelayPresenceService,
+        presenceMonitor: MacRelayPresenceMonitor
     ) {
         self.settingsManager = settingsManager
         self.agentEventManager = agentEventManager
         self.agentSessionStore = agentSessionStore
         self.musicManager = musicManager
+        self.brightnessManager = brightnessManager
+        self.presenceService = presenceService
+        self.presenceMonitor = presenceMonitor
     }
 
     func start() {
         guard pushTask == nil else { return }
 
         agentEventManager.objectWillChange
-            .sink { [weak self] in
-                self?.noteRelayActivityFromCurrentEvent()
-                self?.schedulePush()
-            }
+            .sink { [weak self] in self?.schedulePush() }
             .store(in: &cancellables)
 
         agentSessionStore.objectWillChange
-            .sink { [weak self] in
-                self?.noteRelayActivityFromSessions()
-                self?.schedulePush()
-            }
+            .sink { [weak self] in self?.schedulePush() }
             .store(in: &cancellables)
 
         pushTask = Task { [weak self] in
@@ -79,6 +81,7 @@ final class AgentRemoteBridge {
     }
 
     func pushOfflineState() {
+        presenceMonitor.markOffline()
         guard settingsManager.agentRelayEnabled,
               let endpoint = AgentRelayURL.normalizeBase(settingsManager.agentRelayEndpointURL) else { return }
 
@@ -122,7 +125,14 @@ final class AgentRemoteBridge {
                 latestEvent: state.latestEvent,
                 pendingApproval: state.pendingApproval,
                 macVolume: state.macVolume,
-                macMuted: state.macMuted
+                macMuted: state.macMuted,
+                macId: state.macId,
+                macName: state.macName,
+                macPresence: MacRelayPresence.offline.rawValue,
+                suggestedPollSeconds: 30,
+                apnsAvailable: state.apnsAvailable,
+                macs: state.macs,
+                preferredMacId: state.preferredMacId
             )
         }
 
@@ -179,6 +189,10 @@ final class AgentRemoteBridge {
     }
 
     private func apply(_ command: AgentRelayCommand) {
+        if let targetMac = command.macId, !targetMac.isEmpty, targetMac != settingsManager.agentRelayMacId {
+            return
+        }
+
         switch command.type {
         case "approval":
             guard
@@ -204,18 +218,32 @@ final class AgentRemoteBridge {
                 schedulePush()
             }
 
+        case "media":
+            if command.action == "toggle_play_pause" {
+                musicManager.togglePlay()
+                schedulePush()
+            }
+
+        case "display":
+            if command.action == "set_brightness", let value = command.value {
+                brightnessManager.applyRemoteBrightness(percent: value)
+                schedulePush()
+            }
+
+        case "pairing":
+            if command.action == "select_mac", let macId = command.macId {
+                settingsManager.agentRelayPreferredMacId = macId
+                schedulePush()
+            }
+
         default:
             break
         }
     }
 
     func buildState() -> AgentRelayState {
-        noteRelayActivityFromSessions()
-        noteRelayActivityFromCurrentEvent()
-
-        let badges = relayAgentBadges()
-        pruneStaleRelayActivity(activeBadges: badges)
-        let latestEvent = relayLatestEvent(activeBadges: badges)
+        let badges = presenceService.activeBadges()
+        let latestEvent = presenceService.latestEvent(activeBadges: badges)
 
         var pending: AgentRelayPendingApproval?
         if let request = agentSessionStore.currentApproval {
@@ -230,118 +258,23 @@ final class AgentRemoteBridge {
         }
 
         let volumePercent = Int((musicManager.outputVolume * 100).rounded())
+        let presence = presenceMonitor.presence.rawValue
+        let pollHint = pending != nil ? 2 : (presence == MacRelayPresence.asleep.rawValue ? 15 : 8)
+
         return AgentRelayState(
             activeAgents: badges,
             latestEvent: latestEvent,
             pendingApproval: pending,
             macVolume: min(max(volumePercent, 0), 100),
-            macMuted: musicManager.isOutputMuted
+            macMuted: musicManager.isOutputMuted,
+            macId: settingsManager.agentRelayMacId,
+            macName: presenceMonitor.macName,
+            macPresence: presence,
+            suggestedPollSeconds: pollHint,
+            apnsAvailable: nil,
+            macs: nil,
+            preferredMacId: settingsManager.agentRelayPreferredMacId
         )
-    }
-
-    private func relayAgentBadges() -> [AgentRelayAgentBadge] {
-        var badges: [AgentRelayAgentBadge] = []
-        var seen = Set<String>()
-        let cutoff = Date().addingTimeInterval(-Self.relayActivityMaxAge)
-
-        for session in agentSessionStore.relayActiveSessions {
-            let source = session.source.lowercased()
-            guard !seen.contains(source) else { continue }
-            seen.insert(source)
-            badges.append(AgentRelayAgentBadge(
-                source: source,
-                label: relayLabel(for: source),
-                accent: relayAccent(for: source)
-            ))
-        }
-
-        for (source, seenAt) in lastRelayActivityBySource where seenAt > cutoff {
-            guard !seen.contains(source) else { continue }
-            seen.insert(source)
-            badges.append(AgentRelayAgentBadge(
-                source: source,
-                label: relayLabel(for: source),
-                accent: relayAccent(for: source)
-            ))
-        }
-
-        return badges
-    }
-
-    private func relayLatestEvent(activeBadges: [AgentRelayAgentBadge]) -> AgentRelayEvent? {
-        if let event = agentEventManager.currentEvent, Self.isRelayVisibleEvent(event) {
-            return AgentRelayEvent(
-                type: relayEventType(for: event.kind),
-                agent: event.source.lowercased(),
-                title: event.title,
-                message: event.message,
-                timestamp: ISO8601DateFormatter().string(from: event.createdAt)
-            )
-        }
-
-        guard activeBadges.isEmpty else { return nil }
-        return nil
-    }
-
-    private func noteRelayActivityFromSessions() {
-        let now = Date()
-        for session in agentSessionStore.relayActiveSessions {
-            lastRelayActivityBySource[session.source.lowercased()] = now
-        }
-    }
-
-    private func noteRelayActivityFromCurrentEvent() {
-        guard let event = agentEventManager.currentEvent, Self.isRelayVisibleEvent(event) else { return }
-        lastRelayActivityBySource[event.source.lowercased()] = Date()
-    }
-
-    private func pruneStaleRelayActivity(activeBadges: [AgentRelayAgentBadge]) {
-        let active = Set(activeBadges.map { $0.source.lowercased() })
-        let cutoff = Date().addingTimeInterval(-Self.relayActivityMaxAge)
-        lastRelayActivityBySource = lastRelayActivityBySource.filter { source, seenAt in
-            active.contains(source) || seenAt > cutoff
-        }
-    }
-
-    private static let relayActivityMaxAge: TimeInterval = 3 * 60
-
-    private static func isRelayVisibleEvent(_ event: AgentEvent) -> Bool {
-        guard event.createdAt > Date().addingTimeInterval(-relayActivityMaxAge) else { return false }
-        switch event.kind {
-        case .clear, .completed, .failed, .cancelled: return false
-        case .accessRequest, .waiting, .started, .progress: return true
-        }
-    }
-
-
-    private func relayEventType(for kind: AgentEventKind) -> String {
-        switch kind {
-        case .accessRequest: return "needs_approval"
-        case .completed: return "task_completed"
-        case .waiting: return "waiting"
-        case .failed: return "failed"
-        case .started, .progress: return "status"
-        case .clear: return "clear"
-        case .cancelled: return "cancelled"
-        }
-    }
-
-    private func relayLabel(for source: String) -> String {
-        switch source {
-        case "codex": return "Codex"
-        case "claude": return "Claude"
-        case "cursor": return "Cursor"
-        default: return source.capitalized
-        }
-    }
-
-    private func relayAccent(for source: String) -> String {
-        switch source {
-        case "codex": return "#10A37F"
-        case "claude": return "#D97757"
-        case "cursor": return "#7C3AED"
-        default: return "#FFFFFF"
-        }
     }
 
     private func stateFingerprint(_ state: AgentRelayState, macOnline: Bool) -> Int {
@@ -352,6 +285,8 @@ final class AgentRemoteBridge {
         hasher.combine(state.pendingApproval?.approvalId)
         hasher.combine(state.macVolume)
         hasher.combine(state.macMuted)
+        hasher.combine(state.macPresence)
+        hasher.combine(state.macId)
         hasher.combine(state.activeAgents.count)
         for badge in state.activeAgents.sorted(by: { $0.source < $1.source }) {
             hasher.combine(badge.source)

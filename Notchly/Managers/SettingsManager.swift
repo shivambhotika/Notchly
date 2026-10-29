@@ -238,6 +238,14 @@ final class SettingsManager: ObservableObject {
         didSet { UserDefaults.standard.set(agentRelaySharedSecret, forKey: "agentRelaySharedSecret") }
     }
 
+    @Published var agentRelayMacId: String {
+        didSet { UserDefaults.standard.set(agentRelayMacId, forKey: "agentRelayMacId") }
+    }
+
+    @Published var agentRelayPreferredMacId: String {
+        didSet { UserDefaults.standard.set(agentRelayPreferredMacId, forKey: "agentRelayPreferredMacId") }
+    }
+
     init() {
         self.showBattery = UserDefaults.standard.object(forKey: "showBattery") as? Bool ?? Defaults.showBattery
         self.showMusic = UserDefaults.standard.object(forKey: "showMusic") as? Bool ?? Defaults.showMusic
@@ -272,6 +280,16 @@ final class SettingsManager: ObservableObject {
         self.agentRelayEnabled = UserDefaults.standard.object(forKey: "agentRelayEnabled") as? Bool ?? Defaults.agentRelayEnabled
         self.agentRelayEndpointURL = UserDefaults.standard.string(forKey: "agentRelayEndpointURL") ?? Defaults.agentRelayEndpointURL
         self.agentRelaySharedSecret = UserDefaults.standard.string(forKey: "agentRelaySharedSecret") ?? Defaults.agentRelaySharedSecret
+        let resolvedMacId: String
+        if let storedMacId = UserDefaults.standard.string(forKey: "agentRelayMacId"), !storedMacId.isEmpty {
+            resolvedMacId = storedMacId
+        } else {
+            resolvedMacId = UUID().uuidString.lowercased()
+            UserDefaults.standard.set(resolvedMacId, forKey: "agentRelayMacId")
+        }
+        self.agentRelayMacId = resolvedMacId
+        self.agentRelayPreferredMacId =
+            UserDefaults.standard.string(forKey: "agentRelayPreferredMacId") ?? resolvedMacId
 
         normalizeStatusDisplayModes()
     }

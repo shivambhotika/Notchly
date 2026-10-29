@@ -30,12 +30,29 @@ struct AgentRelayPendingApproval: Codable, Equatable {
     let canAlwaysAllow: Bool
 }
 
+struct AgentRelayMacSummary: Codable, Equatable, Hashable {
+    let macId: String
+    let name: String
+    let presence: String
+    let macOnline: Bool
+    var macVolume: Int?
+    var macMuted: Bool?
+    var updatedAt: String?
+}
+
 struct AgentRelayState: Codable, Equatable {
     var activeAgents: [AgentRelayAgentBadge]
     var latestEvent: AgentRelayEvent?
     var pendingApproval: AgentRelayPendingApproval?
     var macVolume: Int?
     var macMuted: Bool?
+    var macId: String?
+    var macName: String?
+    var macPresence: String?
+    var suggestedPollSeconds: Int?
+    var apnsAvailable: Bool?
+    var macs: [AgentRelayMacSummary]?
+    var preferredMacId: String?
 }
 
 struct AgentRelayCommand: Decodable {
@@ -45,4 +62,6 @@ struct AgentRelayCommand: Decodable {
     let value: Int?
     let muted: Bool?
     let action: String?
+    let macId: String?
+    let enabled: Bool?
 }

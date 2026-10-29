@@ -13,11 +13,19 @@ struct AgentRelayPairingPayload: Codable {
     let v: Int
     let relayURL: String
     let secret: String
+    let macId: String?
+    let macName: String?
 }
 
 enum AgentRelayPairing {
-    static func makePayload(relayURL: String, secret: String) -> String {
-        let payload = AgentRelayPairingPayload(v: 1, relayURL: relayURL, secret: secret)
+    static func makePayload(relayURL: String, secret: String, macId: String, macName: String) -> String {
+        let payload = AgentRelayPairingPayload(
+            v: 2,
+            relayURL: relayURL,
+            secret: secret,
+            macId: macId,
+            macName: macName
+        )
         let data = (try? JSONEncoder().encode(payload)) ?? Data()
         return String(data: data, encoding: .utf8) ?? "{}"
     }

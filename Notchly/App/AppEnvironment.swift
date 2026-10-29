@@ -33,15 +33,24 @@ final class AppEnvironment {
     let networkStatusManager = NetworkStatusManager()
     lazy var agentEventManager = AgentEventManager(settingsManager: settingsManager)
     lazy var agentSessionStore = AgentSessionStore(agentEventManager: agentEventManager)
+    lazy var relayPresenceService = RelayPresenceService(
+        agentSessionStore: agentSessionStore,
+        agentEventManager: agentEventManager
+    )
+    lazy var macRelayPresenceMonitor = MacRelayPresenceMonitor()
     lazy var agentRemoteBridge = AgentRemoteBridge(
         settingsManager: settingsManager,
         agentEventManager: agentEventManager,
         agentSessionStore: agentSessionStore,
-        musicManager: musicManager
+        musicManager: musicManager,
+        brightnessManager: brightnessManager,
+        presenceService: relayPresenceService,
+        presenceMonitor: macRelayPresenceMonitor
     )
     let codexHookIntegrationManager = CodexHookIntegrationManager()
     let claudeHookIntegrationManager = ClaudeHookIntegrationManager()
     let cursorHookIntegrationManager = CursorHookIntegrationManager()
+    let terminalAgentHookIntegrationManager = TerminalAgentHookIntegrationManager()
     let lockScreenOverlayModel = LockScreenOverlayModel()
     let lockScreenWallpaperManager = LockScreenWallpaperManager()
     let lockScreenIdentityManager = LockScreenIdentityManager()
@@ -260,6 +269,23 @@ final class BrightnessManager: ObservableObject {
 
     private func clampedBrightness(_ value: Float) -> Double {
         min(max(Double(value), 0), 1)
+    }
+
+    func applyRemoteBrightness(percent: Int) {
+        let level = Double(min(max(percent, 0), 100)) / 100.0
+        for displayID in activeDisplayIDs() {
+            let service = CGDisplayIOServicePort(displayID)
+            guard service != 0 else { continue }
+            var clamped = Float(level)
+            _ = IODisplaySetFloatParameter(
+                service,
+                0,
+                kIODisplayBrightnessKey as CFString,
+                clamped
+            )
+        }
+        brightnessLevel = level
+        brightnessEventID += 1
     }
 
     private static func loadDisplayServicesGetBrightness() -> DisplayServicesGetBrightnessFunction? {

@@ -316,7 +316,9 @@ struct CodexSettingsView: View {
                         Button("Copy pairing JSON") {
                             let payload = AgentRelayPairing.makePayload(
                                 relayURL: settingsManager.agentRelayEndpointURL,
-                                secret: settingsManager.agentRelaySharedSecret
+                                secret: settingsManager.agentRelaySharedSecret,
+                                macId: settingsManager.agentRelayMacId,
+                                macName: Host.current().localizedName ?? "Mac"
                             )
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(payload, forType: .string)
@@ -327,7 +329,9 @@ struct CodexSettingsView: View {
                     AgentRelayPairingQRView(
                         payload: AgentRelayPairing.makePayload(
                             relayURL: settingsManager.agentRelayEndpointURL,
-                            secret: settingsManager.agentRelaySharedSecret
+                            secret: settingsManager.agentRelaySharedSecret,
+                            macId: settingsManager.agentRelayMacId,
+                            macName: Host.current().localizedName ?? "Mac"
                         )
                     )
                     .frame(maxWidth: .infinity)
