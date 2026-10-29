@@ -53,6 +53,10 @@ final class AgentRemoteBridge {
             .sink { [weak self] in self?.schedulePush() }
             .store(in: &cancellables)
 
+        agentEventManager.$currentEvent
+            .sink { [weak self] _ in self?.schedulePush() }
+            .store(in: &cancellables)
+
         pushTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3))

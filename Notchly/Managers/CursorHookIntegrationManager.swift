@@ -87,8 +87,6 @@ final class CursorHookIntegrationManager: ObservableObject {
         hooks = appendHookCommand(to: hooks, eventName: "sessionStart", command: progressHookCommand)
         hooks = appendHookCommand(to: hooks, eventName: "beforeSubmitPrompt", command: progressHookCommand)
         hooks = appendHookCommand(to: hooks, eventName: "preToolUse", command: progressHookCommand)
-        hooks = appendHookCommand(to: hooks, eventName: "beforeShellExecution", command: approvalHookCommand)
-        hooks = appendHookCommand(to: hooks, eventName: "beforeMCPExecution", command: approvalHookCommand)
         hooks = appendHookCommand(to: hooks, eventName: "stop", command: completedHookCommand)
         hooks = appendHookCommand(to: hooks, eventName: "sessionEnd", command: completedHookCommand)
         config["hooks"] = hooks
@@ -221,7 +219,7 @@ fi
 mkdir -p "$events_dir"
 case "$hook_event" in
   beforeShellExecution|beforeMCPExecution)
-    type="access_request"; title="Need approval"; message="Cursor is awaiting approval"; ttl=120 ;;
+    type="progress"; title="Cursor working"; message=""; ttl=45 ;;
   progress|sessionStart|beforeSubmitPrompt|preToolUse|afterAgentResponse)
     type="progress"; title="Cursor working"; message=""; ttl=180 ;;
   stop|sessionEnd|completed)

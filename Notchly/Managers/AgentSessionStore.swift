@@ -83,20 +83,20 @@ final class AgentSessionStore: ObservableObject {
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    /// Sessions recently touched by hooks — used for iPhone relay badges (avoids stale “Claude active”).
+    /// Sessions that should appear on the phone relay (approvals + live notch events handled separately).
     var relayActiveSessions: [AgentSession] {
         let cutoff = Date().addingTimeInterval(-Self.relaySessionMaxAge)
         return sessions.values.filter { session in
             guard session.updatedAt > cutoff else { return false }
             switch session.phase {
-            case .finished, .failed: return false
-            case .working, .runningTool, .waitingForApproval, .waitingForInput: return true
+            case .finished, .failed, .working, .runningTool: return false
+            case .waitingForApproval, .waitingForInput: return true
             }
         }
         .sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    private static let relaySessionMaxAge: TimeInterval = 3 * 60
+    private static let relaySessionMaxAge: TimeInterval = 90
 
     init(agentEventManager: AgentEventManager) {
         self.agentEventManager = agentEventManager
@@ -179,13 +179,31 @@ final class AgentSessionStore: ObservableObject {
             return
 
         case "beforeShellExecution", "beforeMCPExecution":
-            session.phase = .waitingForApproval
+            // Cursor invokes these hooks for routine tool runs — not only when the user must approve.
+            // Auto-allow so the notch and phone are not spammed; real Cursor permission UI stays in Cursor.
+            let commandSummary = Self.cursorExecutionSummary(payload: payload)
+            session.phase = .runningTool(commandSummary)
             sessions[sessionID] = session
-            enqueueCursorExecutionApproval(message: message, session: session)
+            agentEventManager.publish(source: source, kind: .clear)
+            bridge.respond(to: message.connectionID, with: Self.cursorAutoAllowResponse())
             return
 
-        case "PreToolUse":
+        case "preToolUse", "sessionStart", "beforeSubmitPrompt", "afterAgentResponse":
             session.phase = .runningTool(payload.toolName ?? "tool")
+            agentEventManager.publish(
+                source: source,
+                kind: .progress,
+                title: "Cursor working",
+                message: nil,
+                ttl: 45
+            )
+
+        case "stop", "sessionEnd":
+            session.phase = .finished
+            releaseApprovals(sessionID: sessionID, matching: nil)
+            sessions[sessionID] = session
+            agentEventManager.publish(source: source, kind: .clear)
+            return
 
         case "PostToolUse", "PostToolUseFailure":
             session.phase = .working
@@ -285,40 +303,6 @@ final class AgentSessionStore: ObservableObject {
         }
     }
 
-    private func enqueueCursorExecutionApproval(message: AgentBridgeMessage, session: AgentSession) {
-        let payload = message.payload
-        let input = payload.toolInput ?? [:]
-        let command =
-            (input["command"] as? String)
-            ?? (input["tool_name"] as? String)
-            ?? (input["server"] as? String)
-            ?? payload.hookEventName
-        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        let summary = trimmed.count > 140 ? String(trimmed.prefix(137)) + "…" : trimmed
-        let detailParts = [
-            payload.hookEventName,
-            session.projectName,
-            payload.cwd.isEmpty ? nil : payload.cwd
-        ].compactMap { $0?.isEmpty == false ? $0 : nil }
-        let request = AgentApprovalRequest(
-            id: message.connectionID,
-            sessionID: session.id,
-            source: session.source,
-            projectName: session.projectName,
-            toolName: payload.hookEventName,
-            summary: summary.isEmpty ? "Cursor wants to run a tool" : summary,
-            detail: detailParts.isEmpty ? nil : detailParts.joined(separator: " · "),
-            receivedAt: Date(),
-            fingerprint: payload.toolInputFingerprint,
-            alwaysAllowPermissions: nil
-        )
-        pendingApprovals.append(request)
-        hotkeys.register()
-        if pendingApprovals.count == 1 {
-            presentCurrentApproval()
-        }
-    }
-
     // MARK: - Queue management
 
     private func releaseApprovals(sessionID: String, matching fingerprint: String?) {
@@ -390,6 +374,20 @@ final class AgentSessionStore: ObservableObject {
                 return
             }
         }
+    }
+
+    private static func cursorExecutionSummary(payload: AgentHookPayload) -> String {
+        let input = payload.toolInput ?? [:]
+        if let command = input["command"] as? String, !command.isEmpty {
+            let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.count > 48 ? String(trimmed.prefix(45)) + "…" : trimmed
+        }
+        if let tool = input["tool_name"] as? String, !tool.isEmpty { return tool }
+        return payload.hookEventName
+    }
+
+    private static func cursorAutoAllowResponse() -> Data {
+        Data("{\"permission\":\"allow\"}".utf8)
     }
 
     // MARK: - Hook response encoding (Claude Code PermissionRequest contract)

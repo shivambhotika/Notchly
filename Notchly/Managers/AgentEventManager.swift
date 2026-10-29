@@ -454,11 +454,7 @@ final class AgentEventManager: ObservableObject {
 
     private static let stickyApprovalSources: Set<String> = [
         "codex",
-        "claude",
-        "cursor",
-        "grok",
-        "autorouter",
-        "t3"
+        "claude"
     ]
 
     private static let soundEnabledSources: Set<String> = [

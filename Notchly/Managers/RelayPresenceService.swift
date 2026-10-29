@@ -12,34 +12,16 @@ final class RelayPresenceService {
     private let agentSessionStore: AgentSessionStore
     private let agentEventManager: AgentEventManager
 
-    private var lastActivityBySource: [String: Date] = [:]
-
-    static let activityMaxAge: TimeInterval = 3 * 60
+    static let sessionActivityMaxAge: TimeInterval = 90
 
     init(agentSessionStore: AgentSessionStore, agentEventManager: AgentEventManager) {
         self.agentSessionStore = agentSessionStore
         self.agentEventManager = agentEventManager
     }
 
-    func noteSessions() {
-        let now = Date()
-        for session in agentSessionStore.relayActiveSessions {
-            lastActivityBySource[session.source.lowercased()] = now
-        }
-    }
-
-    func noteCurrentEvent() {
-        guard let event = agentEventManager.currentEvent, isVisibleEvent(event) else { return }
-        lastActivityBySource[event.source.lowercased()] = Date()
-    }
-
     func activeBadges() -> [AgentRelayAgentBadge] {
-        noteSessions()
-        noteCurrentEvent()
-
         var badges: [AgentRelayAgentBadge] = []
         var seen = Set<String>()
-        let cutoff = Date().addingTimeInterval(-Self.activityMaxAge)
 
         for session in agentSessionStore.relayActiveSessions {
             let source = session.source.lowercased()
@@ -52,31 +34,25 @@ final class RelayPresenceService {
             ))
         }
 
-        for (source, seenAt) in lastActivityBySource where seenAt > cutoff {
-            guard !seen.contains(source) else { continue }
-            seen.insert(source)
-            badges.append(AgentRelayAgentBadge(
-                source: source,
-                label: Self.label(for: source),
-                accent: Self.accent(for: source)
-            ))
+        // Match the notch: only show jsonl-driven agents while their live event is still active.
+        if let event = agentEventManager.currentEvent, isVisibleEvent(event) {
+            let source = event.source.lowercased()
+            if !seen.contains(source) {
+                seen.insert(source)
+                badges.append(AgentRelayAgentBadge(
+                    source: source,
+                    label: Self.label(for: source),
+                    accent: Self.accent(for: source)
+                ))
+            }
         }
 
-        let sorted = badges.sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
-        pruneStaleActivity(active: Set(sorted.map(\.source)))
-        return sorted
-    }
-
-    private func pruneStaleActivity(active: Set<String>) {
-        let cutoff = Date().addingTimeInterval(-Self.activityMaxAge)
-        lastActivityBySource = lastActivityBySource.filter { source, seenAt in
-            active.contains(source) || seenAt > cutoff
-        }
+        return badges.sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
     }
 
     func latestEvent(activeBadges: [AgentRelayAgentBadge]) -> AgentRelayEvent? {
         guard let event = agentEventManager.currentEvent, isVisibleEvent(event) else {
-            return activeBadges.isEmpty ? nil : nil
+            return nil
         }
         return AgentRelayEvent(
             type: relayEventType(for: event.kind),
@@ -87,13 +63,7 @@ final class RelayPresenceService {
         )
     }
 
-    private func pruneStaleActivity() {
-        let cutoff = Date().addingTimeInterval(-Self.activityMaxAge)
-        lastActivityBySource = lastActivityBySource.filter { _, seenAt in seenAt > cutoff }
-    }
-
     private func isVisibleEvent(_ event: AgentEvent) -> Bool {
-        guard event.createdAt > Date().addingTimeInterval(-Self.activityMaxAge) else { return false }
         switch event.kind {
         case .clear, .completed, .failed, .cancelled: return false
         case .accessRequest, .waiting, .started, .progress: return true
