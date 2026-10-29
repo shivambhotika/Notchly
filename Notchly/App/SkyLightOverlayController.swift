@@ -624,6 +624,7 @@ final class SkyLightOverlayController {
             brightnessManager: environment.brightnessManager,
             networkStatusManager: environment.networkStatusManager,
             agentEventManager: environment.agentEventManager,
+            agentSessionStore: environment.agentSessionStore,
             lockScreenOverlayModel: environment.lockScreenOverlayModel,
             animationsEnabled: true,
             onClosedHeightChange: { [weak self] height in

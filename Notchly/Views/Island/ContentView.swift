@@ -17,6 +17,7 @@ struct ContentView: View {
     @ObservedObject var brightnessManager: BrightnessManager
     @ObservedObject var networkStatusManager: NetworkStatusManager
     @ObservedObject var agentEventManager: AgentEventManager
+    @ObservedObject var agentSessionStore: AgentSessionStore
     @ObservedObject var lockScreenOverlayModel: LockScreenOverlayModel
     let animationsEnabled: Bool
     let onClosedHeightChange: (CGFloat) -> Void

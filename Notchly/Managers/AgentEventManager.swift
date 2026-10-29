@@ -83,7 +83,8 @@ final class AgentEventManager: ObservableObject {
         kind: AgentEventKind,
         title: String? = nil,
         message: String? = nil,
-        ttl: TimeInterval? = nil
+        ttl: TimeInterval? = nil,
+        bypassDuplicateCheck: Bool = false
     ) {
         let normalizedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isAllowedSource(normalizedSource) else {
@@ -109,7 +110,7 @@ final class AgentEventManager: ObservableObject {
             createdAt: Date()
         )
 
-        showEvent(event)
+        showEvent(event, bypassDuplicateCheck: bypassDuplicateCheck)
     }
 
     func start() {
@@ -246,7 +247,7 @@ final class AgentEventManager: ObservableObject {
                 guard let payload = try? JSONDecoder().decode(AgentEventPayload.self, from: lineData) else { return nil }
                 return makeEvent(from: payload)
             }
-            .forEach(showEvent)
+            .forEach { showEvent($0) }
     }
 
     private func makeEvent(from payload: AgentEventPayload) -> AgentEvent? {
@@ -272,7 +273,7 @@ final class AgentEventManager: ObservableObject {
         )
     }
 
-    private func showEvent(_ event: AgentEvent) {
+    private func showEvent(_ event: AgentEvent, bypassDuplicateCheck: Bool = false) {
         if event.kind == .clear {
             clearCurrentEvent(for: event.source)
             return
@@ -281,13 +282,15 @@ final class AgentEventManager: ObservableObject {
         let eventKey = duplicateKey(for: event)
         let now = Date()
 
-        if let currentEvent,
+        if !bypassDuplicateCheck,
+           let currentEvent,
            duplicateKey(for: currentEvent) == eventKey {
             debugLog("duplicate active event ignored key=\(eventKey)")
             return
         }
 
-        if let lastShownEventKey,
+        if !bypassDuplicateCheck,
+           let lastShownEventKey,
            lastShownEventKey == eventKey,
            let lastShownEventDate,
            now.timeIntervalSince(lastShownEventDate) < max(event.ttl + 1, 3) {

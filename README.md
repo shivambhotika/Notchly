@@ -83,6 +83,28 @@ Enable it in **Settings → Codex**:
 
 Preview: https://x.com/i/status/2061860955928100956
 
+## Agent approvals from the notch (fork addition)
+
+Claude Code permission prompts now appear **in the notch** with buttons, so you can approve a tool call without switching to the terminal.
+
+| Action | Button | Shortcut (only active while a request is pending) |
+|---|---|---|
+| Allow once | **Allow** | `⌥⌘Y` |
+| Allow and stop asking for this rule | **Always** (shown when Claude suggests a rule) | `⌥⌘A` |
+| Deny (Claude is told why) | **Deny** | `⌥⌘N` |
+| Hand back to the terminal prompt | **Terminal** | `⌥⌘T` |
+
+How it works:
+
+- Enable **Settings → Claude** (re-install once if you had the old hook). The hook is a tiny `sh` script that pipes Claude Code's hook payload to `~/Library/Application Support/Notchly/agent.sock` with `/usr/bin/nc`. No Python, no `jq`.
+- For `PermissionRequest`, Notchly holds the connection and replies with Claude Code's `hookSpecificOutput.decision` JSON. No reply means "no decision", and Claude Code shows its normal prompt.
+- Requests wait up to **90 s** in the notch (`AgentBridgeServer.decisionTimeout`), then fall back to the terminal. If Notchly is not running, the hook exits silently and the terminal prompt appears right away.
+- **Always** forwards only Claude's `addRules` (allow) / `addDirectories` suggestions. It never forwards a permission-mode switch.
+- Several sessions can queue requests; the card shows a `+N` badge. A card is withdrawn automatically if the same tool call gets answered in the terminal, the turn ends, or the hook process goes away.
+- The socket is owner-only (`0600`) inside your user folder, so other local accounts can't approve tool calls.
+
+Protocol design adapted from [ai-island](https://github.com/VoidLight00/ai-island) (Apache-2.0). See `NOTICE`.
+
 ## Requirements
 
 - macOS 14.6 or newer.

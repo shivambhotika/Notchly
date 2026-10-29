@@ -295,7 +295,8 @@ extension ContentView {
             isStandaloneAgentClosing = false
             displayedAgentEvent = event
             agentPresentationStartedAt = Date()
-            if canShowAgentOverMusic {
+            // Approval cards need the full interactive island, never the inline music strip.
+            if canShowAgentOverMusic && !agentSessionStore.hasPendingApproval {
                 beginAgentMusicTransitionIfNeeded()
             } else {
                 beginStandaloneAgentPresentation()

@@ -1,0 +1,32 @@
+#!/bin/sh
+# notchly-claude-hook v2 (two-way notch bridge)
+# Sends the raw Claude Code hook payload to Notchly over a private Unix socket.
+# For PermissionRequest, Notchly may reply with an allow/deny decision; empty
+# output means "no decision" and Claude Code shows its normal prompt.
+
+event_type="${1:-completed}"
+support_dir="$HOME/Library/Application Support/Notchly"
+socket_path="$support_dir/agent.sock"
+
+if [ -S "$socket_path" ] && [ -x /usr/bin/nc ]; then
+  {
+    printf '{"v":2,"source":"claude","kind":"%s"}\n' "$event_type"
+    cat
+    printf '\n\036\n'
+  } | /usr/bin/nc -U "$socket_path" 2>/dev/null
+  exit 0
+fi
+
+cat >/dev/null
+
+# Notchly not running (or no nc): keep the old one-way alert file working.
+mkdir -p "$support_dir"
+case "$event_type" in
+  completed|stop) type="completed"; title="Task completed" ;;
+  failed|stop_failure) type="failed"; title="Task failed" ;;
+  approval|notification|permission_prompt) type="access_request"; title="Need approval" ;;
+  waiting|idle_prompt) type="waiting"; title="Waiting for input" ;;
+  *) type="clear"; title="" ;;
+esac
+printf '{"source":"claude","type":"%s","title":"%s","ttl":3}\n' "$type" "$title" >> "$support_dir/agent-events.jsonl"
+exit 0

@@ -1,0 +1,13 @@
+Notchly (fork) — third-party notices
+
+This fork adds two-way agent approvals (Notchly/Managers/AgentBridgeServer.swift,
+AgentSessionStore.swift, AgentApprovalHotkeys.swift, Views/Island/Agent/AgentApprovalView.swift).
+The socket-based approve/deny design is adapted from:
+
+  ai-island — https://github.com/VoidLight00/ai-island
+  Copyright (c) VoidLight00. Licensed under the Apache License, Version 2.0.
+  which is itself based on claude-island — https://github.com/farouqaldori/claude-island
+  Copyright (c) Farouq Aldori. Licensed under the Apache License, Version 2.0.
+
+No code from boring.notch (GPL-3.0) is included.
+The rest of Notchly remains under its original MIT license (see LICENSE).

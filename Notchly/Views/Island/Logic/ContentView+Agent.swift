@@ -44,7 +44,24 @@ extension ContentView {
                 isHovered: isHovered
             ) {
                 ZStack(alignment: .top) {
-                    if showsStandaloneAgentContent && (status == .agentPreview || isStandaloneAgentClosing) {
+                    if showsStandaloneAgentContent && (status == .agentPreview || isStandaloneAgentClosing),
+                       let approval = agentSessionStore.currentApproval {
+                        AgentApprovalView(
+                            request: approval,
+                            queuedCount: agentSessionStore.pendingApprovals.count - 1,
+                            size: layout.agentPreviewSize
+                        ) { decision in
+                            agentSessionStore.resolve(approval, decision)
+                        }
+                        .id(approval.id)
+                        .offset(y: 10)
+                        .transition(
+                            .asymmetric(
+                                insertion: .agentContentSlide(y: -14),
+                                removal: .identity
+                            )
+                        )
+                    } else if showsStandaloneAgentContent && (status == .agentPreview || isStandaloneAgentClosing) {
                         AgentActivityView(
                             event: event,
                             size: layout.agentPreviewSize
@@ -62,8 +79,11 @@ extension ContentView {
                 .frame(width: layout.agentPreviewSize.width + layout.cornerRadius * 2, height: layout.agentPreviewSize.height)
             }
             .overlay {
-                IslandClickCatcher {
-                    openAgentSourceApp(event)
+                // While an approval card is up, its buttons own the clicks.
+                if !agentSessionStore.hasPendingApproval {
+                    IslandClickCatcher {
+                        openAgentSourceApp(event)
+                    }
                 }
             }
             .animation(animation, value: containerSize.width)

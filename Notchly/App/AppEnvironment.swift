@@ -32,6 +32,7 @@ final class AppEnvironment {
     let brightnessManager = BrightnessManager()
     let networkStatusManager = NetworkStatusManager()
     lazy var agentEventManager = AgentEventManager(settingsManager: settingsManager)
+    lazy var agentSessionStore = AgentSessionStore(agentEventManager: agentEventManager)
     let codexHookIntegrationManager = CodexHookIntegrationManager()
     let claudeHookIntegrationManager = ClaudeHookIntegrationManager()
     let cursorHookIntegrationManager = CursorHookIntegrationManager()

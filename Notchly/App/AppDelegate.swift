@@ -48,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menuController.install()
         environment.agentEventManager.start()
+        environment.agentSessionStore.start()
         environment.musicManager.start()
         environment.networkStatusManager.start()
         overlayController.show()
@@ -77,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startupTask?.cancel()
         startupTask = nil
         environment.musicManager.stop()
+        environment.agentSessionStore.stop()
         environment.agentEventManager.stop()
         environment.focusManager.stop()
         environment.brightnessManager.stop()

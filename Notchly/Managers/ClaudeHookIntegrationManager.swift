@@ -59,7 +59,19 @@ final class ClaudeHookIntegrationManager: ObservableObject {
     }
 
     func refreshStatus() {
-        installState = isHookInstalled() ? .installed : .notInstalled
+        let installed = isHookInstalled()
+        if installed {
+            upgradeHookScriptIfNeeded()
+        }
+        installState = installed ? .installed : .notInstalled
+    }
+
+    /// Existing installs keep their settings.json entries; only the script body changes,
+    /// so an older one-way script is swapped for the two-way bridge in place.
+    private func upgradeHookScriptIfNeeded() {
+        let current = try? String(contentsOf: hookScriptURL, encoding: .utf8)
+        guard current != hookScript else { return }
+        try? installHookScript()
     }
 
     func install() {
@@ -97,7 +109,13 @@ final class ClaudeHookIntegrationManager: ObservableObject {
         var hooks = try hooksObject(from: config)
         hooks = try removingManagedHandlers(from: hooks)
 
-        try appendHandler(eventName: "PermissionRequest", command: approvalHookCommand, to: &hooks)
+        // Held open while the notch shows Allow/Deny; the app releases it after ~90s.
+        try appendHandler(
+            eventName: "PermissionRequest",
+            command: approvalHookCommand,
+            timeout: Self.permissionHookTimeout,
+            to: &hooks
+        )
         try appendHandler(
             eventName: "Notification",
             matcher: "permission_prompt",
@@ -183,6 +201,7 @@ final class ClaudeHookIntegrationManager: ObservableObject {
         eventName: String,
         matcher: String? = nil,
         command: String,
+        timeout: Int? = nil,
         to hooks: inout [String: Any]
     ) throws {
         var groups: [[String: Any]] = []
@@ -193,11 +212,15 @@ final class ClaudeHookIntegrationManager: ObservableObject {
             groups = parsedGroups
         }
 
+        var handler: [String: Any] = [
+            "type": "command",
+            "command": command
+        ]
+        if let timeout {
+            handler["timeout"] = timeout
+        }
         var group: [String: Any] = [
-            "hooks": [[
-                "type": "command",
-                "command": command
-            ]]
+            "hooks": [handler]
         ]
         if let matcher {
             group["matcher"] = matcher
@@ -272,51 +295,42 @@ final class ClaudeHookIntegrationManager: ObservableObject {
         command.replacingOccurrences(of: "\"", with: "\\\"")
     }
 
+    static let permissionHookTimeout = 120
+
     private var hookScript: String {
         """
 #!/bin/sh
-set -eu
+# notchly-claude-hook v2 (two-way notch bridge)
+# Sends the raw Claude Code hook payload to Notchly over a private Unix socket.
+# For PermissionRequest, Notchly may reply with an allow/deny decision; empty
+# output means "no decision" and Claude Code shows its normal prompt.
 
 event_type="${1:-completed}"
-events_dir="$HOME/Library/Application Support/Notchly"
-events_file="$events_dir/agent-events.jsonl"
+support_dir="$HOME/Library/Application Support/Notchly"
+socket_path="$support_dir/agent.sock"
 
-mkdir -p "$events_dir"
+if [ -S "$socket_path" ] && [ -x /usr/bin/nc ]; then
+  {
+    printf '{"v":2,"source":"claude","kind":"%s"}\\n' "$event_type"
+    cat
+    printf '\\n\\036\\n'
+  } | /usr/bin/nc -U "$socket_path" 2>/dev/null
+  exit 0
+fi
 
+cat >/dev/null
+
+# Notchly not running (or no nc): keep the old one-way alert file working.
+mkdir -p "$support_dir"
 case "$event_type" in
-  completed|stop)
-    type="completed"
-    title="Task completed"
-    message="Claude Code finished"
-    ;;
-  failed|stop_failure)
-    type="failed"
-    title="Task failed"
-    message="Claude Code failed"
-    ;;
-  approval|notification|permission_prompt)
-    type="access_request"
-    title="Need approval"
-    message="Claude Code terminal session needs approval"
-    ;;
-  waiting|idle_prompt)
-    type="waiting"
-    title="Waiting for input"
-    message="Claude Code terminal session is waiting"
-    ;;
-  approved|clear|pre_tool_use|post_tool_use|permission_denied|user_prompt_submit|session_end)
-    type="clear"
-    title=""
-    message=""
-    ;;
-  *)
-    type="completed"
-    title="Task completed"
-    message="Claude Code finished"
-    ;;
+  completed|stop) type="completed"; title="Task completed" ;;
+  failed|stop_failure) type="failed"; title="Task failed" ;;
+  approval|notification|permission_prompt) type="access_request"; title="Need approval" ;;
+  waiting|idle_prompt) type="waiting"; title="Waiting for input" ;;
+  *) type="clear"; title="" ;;
 esac
-
-printf '{"source":"claude","type":"%s","title":"%s","message":"%s","ttl":3}\\n' "$type" "$title" "$message" >> "$events_file"
+printf '{"source":"claude","type":"%s","title":"%s","ttl":3}\\n' "$type" "$title" >> "$support_dir/agent-events.jsonl"
+exit 0
 """
     }
 

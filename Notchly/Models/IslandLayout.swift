@@ -16,6 +16,7 @@ struct IslandLayout {
     let islandWidth: CGFloat
     let allowsCompactBaseWidth: Bool
     let idleWidthOverride: CGFloat?
+    var agentApprovalActive: Bool = false
 
     let spacing: CGFloat = 10
 
@@ -92,7 +93,12 @@ struct IslandLayout {
     }
 
     var agentPreviewSize: CGSize {
-        musicPreviewSize
+        agentApprovalActive ? agentApprovalSize : musicPreviewSize
+    }
+
+    /// Interactive approval card: header, two-line command preview, action row.
+    var agentApprovalSize: CGSize {
+        CGSize(width: max(baseWidth, 340), height: closedHeight + 104)
     }
 
     var agentCollapsedSize: CGSize {

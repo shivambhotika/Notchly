@@ -29,7 +29,8 @@ extension ContentView {
             closedHeight: closedHeight,
             islandWidth: effectiveIslandWidth,
             allowsCompactBaseWidth: musicStartUsesIdleWidth,
-            idleWidthOverride: configuredIdleIslandWidth
+            idleWidthOverride: configuredIdleIslandWidth,
+            agentApprovalActive: agentSessionStore.hasPendingApproval
         )
     }
 
