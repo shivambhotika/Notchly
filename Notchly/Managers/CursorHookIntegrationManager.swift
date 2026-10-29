@@ -35,7 +35,17 @@ final class CursorHookIntegrationManager: ObservableObject {
     }
 
     func refreshStatus() {
-        installState = isHookInstalled() ? .installed : .notInstalled
+        let installed = isHookInstalled()
+        if installed {
+            upgradeHookScriptIfNeeded()
+        }
+        installState = installed ? .installed : .notInstalled
+    }
+
+    private func upgradeHookScriptIfNeeded() {
+        let current = try? String(contentsOf: hookScriptURL, encoding: .utf8)
+        guard current != hookScript else { return }
+        try? installHookScript()
     }
 
     func install() {
@@ -74,7 +84,13 @@ final class CursorHookIntegrationManager: ObservableObject {
 
         var hooks = config["hooks"] as? [String: Any] ?? [:]
         hooks = removeManagedHookCommands(from: hooks)
+        hooks = appendHookCommand(to: hooks, eventName: "sessionStart", command: progressHookCommand)
+        hooks = appendHookCommand(to: hooks, eventName: "beforeSubmitPrompt", command: progressHookCommand)
+        hooks = appendHookCommand(to: hooks, eventName: "preToolUse", command: progressHookCommand)
+        hooks = appendHookCommand(to: hooks, eventName: "beforeShellExecution", command: approvalHookCommand)
+        hooks = appendHookCommand(to: hooks, eventName: "beforeMCPExecution", command: approvalHookCommand)
         hooks = appendHookCommand(to: hooks, eventName: "stop", command: completedHookCommand)
+        hooks = appendHookCommand(to: hooks, eventName: "sessionEnd", command: completedHookCommand)
         config["hooks"] = hooks
 
         let data = try JSONSerialization.data(
@@ -153,6 +169,7 @@ final class CursorHookIntegrationManager: ObservableObject {
         }
 
         return containsHookCommand(hooks, eventName: "stop", command: completedHookCommand)
+            && containsHookCommand(hooks, eventName: "beforeSubmitPrompt", command: progressHookCommand)
     }
 
     private func containsHookCommand(
@@ -165,7 +182,11 @@ final class CursorHookIntegrationManager: ObservableObject {
     }
 
     private var completedHookCommand: String {
-        "\"\(hookScriptURL.path)\" completed"
+        "\"\(hookScriptURL.path)\" stop"
+    }
+
+    private var progressHookCommand: String {
+        "\"\(hookScriptURL.path)\" progress"
     }
 
     private var approvalHookCommand: String {
@@ -188,34 +209,45 @@ events_file="$events_dir/agent-events.jsonl"
 mkdir -p "$events_dir"
 
 case "$event_type" in
-  completed|stop)
-    type="completed"
-    title="Task completed"
-    message="Cursor finished"
+  progress|sessionStart|beforeSubmitPrompt|preToolUse|afterAgentResponse)
+    type="progress"
+    title="Cursor working"
+    message=""
+    ttl=180
+    ;;
+  completed|stop|sessionEnd)
+    type="clear"
+    title=""
+    message=""
+    ttl=3
     ;;
   failed)
     type="failed"
     title="Task failed"
     message="Cursor failed"
+    ttl=3
     ;;
-  approval|access_request|notification|permission_request|before_shell_command|before_shell_execution)
+  approval|access_request|notification|permission_request|before_shell_command|before_shell_execution|beforeMCPExecution)
     type="access_request"
     title="Need approval"
     message="Cursor is awaiting approval"
+    ttl=120
     ;;
-  approved|clear|after_shell_command|after_shell_execution)
+  approved|clear|after_shell_command|after_shell_execution|afterMCPExecution)
     type="clear"
     title=""
     message=""
+    ttl=3
     ;;
   *)
-    type="completed"
-    title="Task completed"
-    message="Cursor finished"
+    type="progress"
+    title="Cursor working"
+    message=""
+    ttl=180
     ;;
 esac
 
-printf '{"source":"cursor","type":"%s","title":"%s","message":"%s","ttl":3}\\n' "$type" "$title" "$message" >> "$events_file"
+printf '{"source":"cursor","type":"%s","title":"%s","message":"%s","ttl":%s}\\n' "$type" "$title" "$message" "$ttl" >> "$events_file"
 """
     }
 

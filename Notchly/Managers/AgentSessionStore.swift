@@ -79,9 +79,24 @@ final class AgentSessionStore: ObservableObject {
 
     var activeSessions: [AgentSession] {
         sessions.values
-            .filter { $0.phase != .finished }
+            .filter { $0.phase != .finished && $0.phase != .failed }
             .sorted { $0.updatedAt > $1.updatedAt }
     }
+
+    /// Sessions recently touched by hooks — used for iPhone relay badges (avoids stale “Claude active”).
+    var relayActiveSessions: [AgentSession] {
+        let cutoff = Date().addingTimeInterval(-Self.relaySessionMaxAge)
+        return sessions.values.filter { session in
+            guard session.updatedAt > cutoff else { return false }
+            switch session.phase {
+            case .finished, .failed: return false
+            case .working, .runningTool, .waitingForApproval, .waitingForInput: return true
+            }
+        }
+        .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    private static let relaySessionMaxAge: TimeInterval = 3 * 60
 
     init(agentEventManager: AgentEventManager) {
         self.agentEventManager = agentEventManager
@@ -127,6 +142,16 @@ final class AgentSessionStore: ObservableObject {
             activateTerminal()
         }
         removeApproval(request.id, releasedExternally: false)
+    }
+
+    /// Applies a decision sent from the Agent Island iPhone app via the relay.
+    @discardableResult
+    func resolveRemoteApproval(id: UUID, decision: AgentApprovalDecision) -> Bool {
+        guard let request = pendingApprovals.first(where: { $0.id == id }) else { return false }
+        let effective: AgentApprovalDecision =
+            (decision == .alwaysAllow && !request.canAlwaysAllow) ? .allow : decision
+        resolve(request, effective)
+        return true
     }
 
     // MARK: - Incoming hook messages
@@ -306,7 +331,7 @@ final class AgentSessionStore: ObservableObject {
     }
 
     private func pruneStaleSessions() {
-        let cutoff = Date().addingTimeInterval(-30 * 60)
+        let cutoff = Date().addingTimeInterval(-5 * 60)
         sessions = sessions.filter { _, session in
             session.updatedAt > cutoff || session.phase == .waitingForApproval
         }

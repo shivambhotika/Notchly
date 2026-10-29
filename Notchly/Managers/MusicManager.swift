@@ -715,6 +715,27 @@ final class MusicManager: ObservableObject {
     }
 
     @MainActor
+    func applyRemoteVolume(percent: Int) {
+        let clamped = min(max(percent, 0), 100)
+        setOutputVolume(Double(clamped) / 100.0)
+        outputVolumeEventID += 1
+    }
+
+    @MainActor
+    func applyRemoteMute(_ muted: Bool) {
+        if muted {
+            if !isOutputMuted {
+                _ = SystemOutputVolume.setMuted(true)
+                refreshOutputVolume(emitsEvent: false)
+            }
+        } else if isOutputMuted {
+            _ = SystemOutputVolume.setMuted(false)
+            setOutputVolume(max(lastAudibleOutputVolume, 0.12))
+        }
+        outputVolumeEventID += 1
+    }
+
+    @MainActor
     func setOutputVolume(_ volume: Double) {
         let clamped = min(max(volume, 0), 1)
 
